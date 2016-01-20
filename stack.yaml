@@ -1,0 +1,121 @@
+flags:
+  time-locale-compat:
+    old-locale: false
+extra-package-dbs: []
+packages:
+- '.'
+- location:
+    git: https://github.com/ryantrinkle/reflex.git
+    commit: 6924dad048bc020ba4dc3da5d56af412c0ca5618
+  extra-dep: true
+- location:
+    git: https://github.com/ryantrinkle/reflex-dom.git
+    commit: 6ce47284bb4c9472f002f98437318a1ee6650ac4
+  extra-dep: true
+#- location:
+#    git: https://github.com/plow-technologies/ghcjs-servant-client.git
+#    commit: adc1dbfed448a4f4980a36f348627eb61c5b2cc4
+#  extra-dep: true
+setup-info:
+  ghcjs:
+    source:
+#      ghcjs-0.2.0.20151029_ghc-7.10.2:
+#        url: https://github.com/nrolland/ghcjs/releases/download/v0.2.0.20151029/ghcjs-0.2.0.20151029.tar.gz
+      ghcjs-0.2.0.20151230.2_ghc-7.10.3:
+        url: https://github.com/nrolland/ghcjs/releases/download/v0.2.0.20151230.2/ghcjs-0.2.0.20151230.2.tar.gz
+extra-deps:
+    - here-1.2.7
+    - MonadRandom-0.4.1
+    - either-4.4.1
+    - mmorph-1.0.4
+    - Glob-0.7.5
+    - MemoTrie-0.6.4
+    - ReadArgs-1.2.2
+    - StateVar-1.1.0.2
+    - abstract-deque-0.3
+    - abstract-par-0.3.3
+    - adjunctions-4.2.2
+    - ansi-terminal-0.6.2.3
+    - ansi-wl-pprint-0.6.7.3
+    - base-orphans-0.4.5
+    - base-unicode-symbols-0.2.2.4
+    - basic-prelude-0.5.0
+    - bifunctors-5.1
+    - blaze-builder-0.4.0.1
+    - cassava-0.4.4.0
+    - cereal-0.5.1.0
+    - chunked-data-0.2.0
+    - classy-prelude-0.12.5
+    - comonad-4.2.7.2
+    - containers-unicode-symbols-0.3.1.1
+    - contravariant-1.3.3
+    - cpphs-1.19.3
+    - criterion-1.1.0.0
+    - data-default-0.5.3
+    - data-default-class-0.0.1
+    - data-default-instances-base-0.0.1
+    - data-default-instances-containers-0.0.1
+    - data-default-instances-dlist-0.0.1
+    - data-default-instances-old-locale-0.0.1
+    - dependent-map-0.1.1.3
+    - dependent-sum-0.2.1.0
+    - dependent-sum-template-0.0.0.4
+    - distributive-0.4.4
+    - dlist-instances-0.1
+    - enclosed-exceptions-1.0.1.1
+    - erf-2.0.0.0
+    - exception-transformers-0.4.0.2
+    - exceptions-0.8.0.2
+    - free-4.12.1
+    - ghcjs-dom-0.2.3.1
+    - haskell-src-exts-1.16.0.1
+    - haskell-src-meta-0.6.0.13
+    - hastache-0.6.1
+    - ieee754-0.7.8
+    - kan-extensions-4.2.3
+    - keys-3.10.2
+    - lens-4.13
+    - lifted-base-0.2.3.6
+    - math-functions-0.1.5.2
+    - monad-control-1.0.0.4
+    - monad-par-0.3.4.7
+    - monad-par-extras-0.3.3
+    - mono-traversable-0.10.0.1
+    - mutable-containers-0.3.2
+    - mwc-random-0.13.3.2
+    - nats-1.1
+    - optparse-applicative-0.12.0.0
+    - parsec-3.1.9
+    - pointed-4.2.0.2
+    - polyparse-1.11
+    - prelude-extras-0.4.0.2
+    - profunctors-5.1.2
+    - prompt-0.1.1.0
+    - random-1.1
+    - ref-tf-0.4
+    - reflection-2.1.1.1
+    - safe-0.3.9
+    - semigroupoids-5.0.0.4
+    - semigroups-0.17.0.1
+    - split-0.2.3
+    - statistics-0.13.2.3
+    - system-filepath-0.4.13.4
+    - tagged-0.8.2
+    - th-expand-syns-0.3.0.6
+    - th-extras-0.0.0.2
+    - th-lift-0.7.5
+    - th-orphans-0.13.0
+    - th-reify-many-0.1.3
+    - these-0.6.2.0
+    - time-locale-compat-0.1.1.1
+    - transformers-base-0.4.4
+    - transformers-compat-0.4.0.4
+    - vector-algorithms-0.7.0.1
+    - vector-binary-instances-0.2.1.0
+    - vector-instances-3.3.1
+    - vector-th-unbox-0.2.1.3
+    - void-0.7.1
+compiler-check: match-exact
+compiler: ghcjs-0.2.0.20151230.2_ghc-7.10.3
+resolver: ghcjs-0.2.0.20151230.2_ghc-7.10.3
+require-stack-version: ! '>= 0.1.8.0'
