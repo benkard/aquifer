@@ -6,6 +6,9 @@ module Model
     , drinkTimestamp
     , drinkLiters
     , DrinkDB(..)
+    , Model(..)
+    , drinkDB
+    , drinkDialogActive
     ) where
 
 import ClassyPrelude
@@ -25,4 +28,11 @@ $(makeLenses ''Drink)
 $(AesonTH.deriveJSON (AesonTH.defaultOptions{AesonTH.fieldLabelModifier = toLower ∘ (drop 6)}) ''Drink)
 
 data DrinkDB = DrinkDB { unDrinkDB ∷ [Drink] }
+$(makeLenses ''DrinkDB)
 $(AesonTH.deriveJSON AesonTH.defaultOptions ''DrinkDB)
+
+data Model = Model
+  { _drinkDB           ∷ DrinkDB
+  , _drinkDialogActive ∷ Bool
+  }
+$(makeLenses ''Model)

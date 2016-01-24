@@ -12,7 +12,7 @@ import Reflex
 import Reflex.Dom
 import Reflex.Host.Class (HostFrame)
 import Prelude.Unicode ((≡), (≥))
-import Control.Lens
+import Control.Lens ((^.))
 import qualified Data.Aeson as Aeson
 import qualified Data.Scientific as Scientific
 import qualified Data.Time.Clock as Clock
@@ -25,7 +25,7 @@ import qualified GHCJS.DOM.Window as DOMWindow
 import qualified GHCJS.DOM.Element as DOMElement
 import Data.String.Here.Uninterpolated (here)
 
-import Model (Drink(..), drinkId, drinkDescription, drinkTimestamp, drinkLiters, DrinkDB(..))
+import Model (Drink(..), drinkId, drinkDescription, drinkTimestamp, drinkLiters, DrinkDB(..), Model(..))
 
 foreign import javascript unsafe "console.log($1)" js_log :: JSString -> IO ()
 
@@ -62,6 +62,9 @@ combineDyn3 ∷ (Reflex t, MonadHold t m) ⇒ (a → b → c → d) → Dynamic 
 combineDyn3 f d1 d2 d3 = do
     d1d2 ← combineDyn ((,)) d1 d2
     combineDyn (\(d1',d2') d3' → f d1' d2' d3') d1d2 d3
+
+uncurry3 ∷ (a → b → c → d) → (a,b,c) → d
+uncurry3 f (x, y, z) = f x y z
 
 drinkInput ∷ MonadWidget t m ⇒ Event t () → Event t () → m (Event t (), Dynamic t (Maybe (Text, Scientific.Scientific, UTCTime)))
 drinkInput focusEvent clearEvent = elAttr "div" (Data.Map.fromList [("class", "ui green segment")]) $ do
@@ -133,10 +136,6 @@ buildHead = do
                                         ("src",  "https://code.jquery.com/jquery-2.2.0.min.js")]) $ return ()
     elAttr "script" (Data.Map.fromList [("type", "text/javascript"),
                                         ("src",  "https://cdnjs.cloudflare.com/ajax/libs/semantic-ui/2.1.8/semantic.min.js")]) $ return ()
-    --elAttr "script" (Data.Map.fromList [("type", "text/javascript"),
-    --                                    ("src",  "https://cdnjs.cloudflare.com/ajax/libs/webcomponentsjs/0.7.20/webcomponents.min.js")]) $ return ()
-    elAttr "script" (Data.Map.fromList [("type", "text/javascript"),
-                                        ("src",  "https://cdnjs.cloudflare.com/ajax/libs/webcomponentsjs/0.7.20/MutationObserver.min.js")]) $ return ()
     elAttr "link"   (Data.Map.fromList [("type", "text/css"),
                                         ("href", "https://cdnjs.cloudflare.com/ajax/libs/semantic-ui/2.1.8/semantic.min.css"),
                                         ("rel",  "stylesheet")]) $ return ()
@@ -148,102 +147,136 @@ buildHead = do
       void $ elAttr "meta" (Data.Map.fromList [("name",    name), 
                                                ("content", content)]) $ return ()
 
+type Intent = [Action]
+
+data Action =
+    AddDrink Text Scientific.Scientific UTCTime
+  | ShowDrinkDialog
+  | HideDrinkDialog
+
+update ∷ Intent → Model → Model
+update intent model = foldr update1 model intent
+
+update1 ∷ Action → Model → Model
+update1 (AddDrink description milliliters timestamp) model =
+    model { _drinkDB = DrinkDB $ newDrink:(unDrinkDB $ _drinkDB model) }
+  where 
+    minimalUnusedID =
+      foldr (\drink acc → max acc (1 + (drink^.drinkId))) 0 (unDrinkDB $ _drinkDB model)
+    newDrink =
+      Drink { _drinkId          = minimalUnusedID
+            , _drinkDescription = description
+            , _drinkTimestamp   = timestamp
+            , _drinkLiters      = milliliters/1000
+            }
+update1 ShowDrinkDialog model =
+    model { _drinkDialogActive = True }
+update1 HideDrinkDialog model =
+    model { _drinkDialogActive = False }
+
+viewStatusPage ∷ MonadWidget t m ⇒ Dynamic t Model → m ()
+viewStatusPage model = el "div" $ do
+    drinkDB ← mapDyn _drinkDB model
+    today ← Clock.utctDay <$> (liftIO $ Clock.getCurrentTime)
+    let yesterday = Calendar.addDays (-1) today
+
+    -- the progress message that tells you how you're doing today
+    totalLitersToday ← forDyn drinkDB $ \drinkDB' →
+      sum $ map _drinkLiters $ filter (\drink → Clock.utctDay (drink^.drinkTimestamp) ≡ today) (unDrinkDB drinkDB')
+    totalLitersYesterday ← forDyn drinkDB $ \drinkDB' →
+      sum $ map _drinkLiters $ filter (\drink → Clock.utctDay (drink^.drinkTimestamp) ≡ yesterday) (unDrinkDB drinkDB')
+    progressMessageAttrs ← forDyn totalLitersToday $ \x → if
+      | x ≥ 2.5   → ("class" =: "ui green message")
+      | x ≥ 1.5   → ("class" =: "ui yellow message")
+      | otherwise → ("class" =: "ui red message")
+    elDynAttr "div" progressMessageAttrs $
+      el "em" $ do
+        dynText =<< mapDyn (\totalLitersYesterday' → "Yesterday: " ++ show totalLitersYesterday' ++ " of 2.5 liters") totalLitersYesterday
+        el "br" $ return ()
+        el "strong" $ do
+          dynText =<< mapDyn (\totalLitersToday' → "Progress today: " ++ show totalLitersToday' ++ " of 2.5 liters") totalLitersToday
+
+    -- the drink log
+    rowKeysAndValues ← mapDyn
+      (\drinkDB' → Data.Map.fromList $
+         [ ((-drink^.drinkId, drink^.drinkTimestamp), drink) | drink ← (unDrinkDB drinkDB') ])
+      drinkDB
+    _ ← tableDynAttr "ui celled inverted purple table"
+                     [ ("Date",   \_ drinkDyn → dynText =<< mapDyn (\x → TimeFormat.formatTime TimeFormat.defaultTimeLocale "%F %R" (x^.drinkTimestamp)) drinkDyn)
+                     , ("Type",   \_ drinkDyn → dynText =<< mapDyn (\x → unpack $ x^.drinkDescription) drinkDyn)
+                     , ("Amount", \_ drinkDyn → dynText =<< mapDyn (\x → show (x^.drinkLiters) <> " liters") drinkDyn)
+                     ]
+                     rowKeysAndValues
+                     (\(_, timestamp) → return $ constDyn $ if
+                       | Clock.utctDay timestamp ≡ today →
+                           mempty
+                       | otherwise →
+                           ("class" =: "disabled"))
+
+    return ()
+
+viewDrinkInput ∷ MonadWidget t m ⇒ Dynamic t Model → m (Event t Intent)
+viewDrinkInput model = mdo
+    modalActive ← mapDyn _drinkDialogActive model
+
+    inputModalAttrs ← forDyn modalActive $ \modalActive' →
+      Data.Map.fromList [("class", if modalActive' then "ui basic modal transition visible active" else "ui basic modal transition hidden")]
+    pageDimmerAttrs ← forDyn modalActive $ \modalActive' →
+      Data.Map.fromList [("class", if modalActive' then "ui dimmer modals page transition visible active" else "ui dimmer modals page transition hidden")]
+    toggleButtonClick ← elAttr "div" ("class" =: "ui fixed bottom right sticky fluid fullwidth") $ do
+      bigPlusButton
+    (cancelClick, approveClick, inputSubmit, inputDrinkComponents) ← elDynAttr "div" pageDimmerAttrs $ do
+      elDynAttr "div" inputModalAttrs $ do
+        elAttr "div" ("class" =: "header") $ do
+          text "Add drink"
+        (inputSubmit', inputDrinkComponents') ← elAttr "div" ("class" =: "content") $ do
+          drinkInput toggleButtonClick inputDrinkSubmitEv
+        (cancelClick'', approveClick'') ← elAttr "div" ("class" =: "actions ui grid") $ do
+          cancelClick' ← uiButton "large four wide column cancel" $ do
+            text "Cancel"
+          approveClick' ← uiButton "large ten wide column positive approve" $ do
+            text "Add"
+          return (cancelClick', approveClick')
+        return (cancelClick'', approveClick'', inputSubmit', inputDrinkComponents')
+    let modalActivationIntent =
+          fmap toList $ mergeList $
+            [ fmap (\_ → ShowDrinkDialog) toggleButtonClick
+            , fmap (\_ → HideDrinkDialog) cancelClick
+            , fmap (\_ → HideDrinkDialog) approveClick
+            , fmap (\_ → HideDrinkDialog) inputSubmit
+            ]
+    let inputDrinkSubmitEv = approveClick `appendEvents` inputSubmit
+    let inputDrinkComponentsInputEv = tag (current inputDrinkComponents) inputDrinkSubmitEv
+    let drinkAddIntent = fmap (maybe [] (\drinkComponents → [uncurry3 AddDrink drinkComponents])) inputDrinkComponentsInputEv
+    return $ drinkAddIntent `appendEvents` modalActivationIntent
+
+view ∷ MonadWidget t m ⇒ Dynamic t Model → m (Event t Intent)
+view model = do
+    inputIntent ← viewDrinkInput model
+    viewStatusPage model
+    return inputIntent
+
 main ∷ IO ()
 main = mainWidgetWithHead buildHead $ do
     Just window  ← liftIO $ DOM.currentWindow
     Just storage ← liftIO $ DOMWindow.getLocalStorage window
+
+    -- Load model from web storage.
     rawStoredDB  ← liftIO $ DOMStorage.getItem storage ("drinks" ∷ JSString)
     let loadedDB = rawStoredDB >>= \jsstr → Aeson.decode (encodeUtf8 (pack (fromJSString jsstr)))
     let initialDrinkDB = maybe (DrinkDB []) id loadedDB
-    today ← Clock.utctDay <$> (liftIO $ Clock.getCurrentTime)
-    let yesterday = Calendar.addDays (-1) today
+    let initialModel = Model { _drinkDB = initialDrinkDB, _drinkDialogActive = False }
 
-    -- view part 1: drink input
-    inputDrinkComponentsInputEv ← mdo
-      inputModalAttrs ← forDyn modalActive $ \modalActive' →
-        Data.Map.fromList [("class", if modalActive' then "ui basic modal transition visible active" else "ui basic modal transition hidden")]
-      pageDimmerAttrs ← forDyn modalActive $ \modalActive' →
-        Data.Map.fromList [("class", if modalActive' then "ui dimmer modals page transition visible active" else "ui dimmer modals page transition hidden")]
-      modalActive ← foldDyn ($) False $ mergeWith (.)
-                      [ fmap (\_ → not) toggleButtonClick
-                      , fmap (\_ _ → False) cancelClick
-                      , fmap (\_ _ → False) approveClick
-                      , fmap (\_ _ → False) inputSubmit
-                      ]
-      toggleButtonClick ← elAttr "div" ("class" =: "ui fixed bottom right sticky fluid fullwidth") $ do
-        bigPlusButton
-      (cancelClick, approveClick, inputSubmit, inputDrinkComponents) ← elDynAttr "div" pageDimmerAttrs $ do
-        elDynAttr "div" inputModalAttrs $ do
-          elAttr "div" ("class" =: "header") $ do
-            text "Add drink"
-          (inputSubmit', inputDrinkComponents') ← elAttr "div" ("class" =: "content") $ do
-            drinkInput toggleButtonClick inputDrinkSubmitEv
-          (cancelClick'', approveClick'') ← elAttr "div" ("class" =: "actions ui grid") $ do
-            cancelClick' ← uiButton "large four wide column cancel" $ do
-              text "Cancel"
-            approveClick' ← uiButton "large ten wide column positive approve" $ do
-              text "Add"
-            return (cancelClick', approveClick')
-          return (cancelClick'', approveClick'', inputSubmit', inputDrinkComponents')
-      let inputDrinkSubmitEv = approveClick `appendEvents` inputSubmit
-      let inputDrinkComponentsInputEv = tag (current inputDrinkComponents) inputDrinkSubmitEv 
-      return inputDrinkComponentsInputEv
+    -- Main logic.
+    rec model ← foldDyn update initialModel intent
+        intent ← view model
 
-    -- model
-    drinkDB ← foldDyn (\maybeInput drinkDB →
-                         maybe
-                           drinkDB
-                           (\(inputDesc, inputMilliliters, inputTime) →
-                              let minimalUnusedID =
-                                    foldr (\drink acc → max acc (1 + (drink^.drinkId))) 0 (unDrinkDB drinkDB)
-                                  newDrink =
-                                    Drink { _drinkId          = minimalUnusedID
-                                          , _drinkDescription = inputDesc
-                                          , _drinkTimestamp   = inputTime
-                                          , _drinkLiters      = inputMilliliters/1000
-                                          }
-                              in DrinkDB $ newDrink:(unDrinkDB drinkDB))
-                           maybeInput)
-                      initialDrinkDB
-                      inputDrinkComponentsInputEv
-    -- model: save on change
+    -- Save model to web storage on update.
+    drinkDB ← mapDyn _drinkDB model
     let saveDB = map (\updatedDB → do
                         liftIO $ js_log "DB has been updated."
                         liftIO $ DOMStorage.setItem storage ("drinks" ∷ JSString) (toJSString (unpack (decodeUtf8 (Aeson.encode updatedDB)))))
                      (updated drinkDB)
     performEvent_ saveDB
 
-    -- view part 2
-    el "div" $ do
-      -- the progress message that tells you how you're doing today
-      totalLitersToday ← forDyn drinkDB $ \drinkDB' →
-        sum $ map _drinkLiters $ filter (\drink → Clock.utctDay (drink^.drinkTimestamp) ≡ today) (unDrinkDB drinkDB')
-      totalLitersYesterday ← forDyn drinkDB $ \drinkDB' →
-        sum $ map _drinkLiters $ filter (\drink → Clock.utctDay (drink^.drinkTimestamp) ≡ yesterday) (unDrinkDB drinkDB')
-      progressMessageAttrs ← forDyn totalLitersToday $ \x → if
-        | x ≥ 2.5   → (Data.Map.fromList [("class", "ui green message")])
-        | x ≥ 1.5   → (Data.Map.fromList [("class", "ui yellow message")])
-        | otherwise → (Data.Map.fromList [("class", "ui red message")])
-      elDynAttr "div" progressMessageAttrs $
-        el "em" $ do
-          dynText =<< mapDyn (\totalLitersYesterday' → "Yesterday: " ++ show totalLitersYesterday' ++ " of 2.5 liters") totalLitersYesterday
-          el "br" $ return ()
-          el "strong" $ do
-            dynText =<< mapDyn (\totalLitersToday' → "Progress today: " ++ show totalLitersToday' ++ " of 2.5 liters") totalLitersToday
-      -- the drink log
-      rowKeysAndValues ← mapDyn
-        (\drinkDB' → Data.Map.fromList $
-           [((-drink^.drinkId, drink^.drinkTimestamp), drink) | drink ← (unDrinkDB drinkDB')])
-        drinkDB
-      _ ← tableDynAttr "ui celled inverted purple table"
-                       [ ("Date",   \_ drinkDyn → dynText =<< mapDyn (\x → TimeFormat.formatTime TimeFormat.defaultTimeLocale "%F %R" (x^.drinkTimestamp)) drinkDyn)
-                       , ("Type",   \_ drinkDyn → dynText =<< mapDyn (\x → unpack $ x^.drinkDescription) drinkDyn)
-                       , ("Amount", \_ drinkDyn → dynText =<< mapDyn (\x → show (x^.drinkLiters) <> " liters") drinkDyn)
-                       ]
-                       rowKeysAndValues
-                       (\(_, timestamp) → return $ constDyn $ if
-                         | Clock.utctDay timestamp ≡ today →
-                           mempty
-                         | otherwise →
-                           Data.Map.fromList [("class", "disabled")])
-      return ()
+    return ()
