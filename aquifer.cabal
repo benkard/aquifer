@@ -1,15 +1,16 @@
 name:                aquifer
 version:             0.1.0.0
-synopsis:            Personal water consumption tracker.
-description:         .
+synopsis:            Initial project template from stack
+description:         Please see README.md
 homepage:            https://pente.benkard.de/tag/aquifer/
 license:             AGPL-3
 license-file:        COPYING.AGPL
 author:              Matthias Andreas Benkard
 maintainer:          code@mulk.eu
-copyright:           Copyright 2016 Matthias Andreas Benkard
+copyright:           AllRightsReserved
 category:            Web
 build-type:          Simple
+-- extra-source-files:
 cabal-version:       >=1.10
 
 library
@@ -21,6 +22,8 @@ library
                      , reflex
                      , reflex-dom
                      , ghcjs-dom
+--                     , reflex-diagrams
+--                     , ghcjs-servant-client
                      , prompt
                      , lens
                      , classy-prelude
