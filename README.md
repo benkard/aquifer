@@ -3,7 +3,7 @@
 ## Summary
 
 A water consumption tracker running in the browser, written
-with [GHCJS]() and [Reflex FRP]().
+with [GHCJS][] and [Reflex FRP][].
 
 ## Usage
 
@@ -22,8 +22,8 @@ for today.
 
 ## Implementation notes
 
-The application is written in Haskell, compiled with [GHCJS](), and
-based on the [Reflex FRP]() library.
+The application is written in Haskell, compiled with [GHCJS][], and
+based on the [Reflex FRP][] library.
 
 [Reflex FRP]: https://github.com/reflex-frp/reflex
 [GHCJS]:      https://github.com/ghcjs/ghcjs
